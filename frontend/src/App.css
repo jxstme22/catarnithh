@@ -14,6 +14,26 @@
   transition: opacity 800ms ease, transform 800ms ease;
 }
 
+.docs-link {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.5rem;
+  z-index: 5;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.docs-link:hover {
+  color: var(--fg);
+}
+
 .landing--visible {
   opacity: 1;
   transform: translateY(0);
@@ -71,6 +91,23 @@
     0 14px 34px rgba(0, 0, 0, 0.7),
     0 6px 14px rgba(0, 0, 0, 0.5),
     0 1px 2px rgba(255, 255, 255, 0.05);
+}
+
+.code--glow {
+  border-color: #ff7a2a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 0 18px rgba(255, 92, 0, 0.7),
+    0 0 42px rgba(255, 92, 0, 0.45),
+    0 0 80px rgba(255, 92, 0, 0.25),
+    0 10px 28px rgba(0, 0, 0, 0.6);
+  transition: box-shadow 300ms ease, border-color 300ms ease;
+}
+
+.code--glow .cargo {
+  color: #ff7a1a;
+  text-shadow: 0 0 10px rgba(255, 92, 0, 0.8), 0 0 24px rgba(255, 92, 0, 0.45);
 }
 
 .code--copied {

@@ -1,14 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AsciiBackground from './components/AsciiBackground';
+import Docs from './Docs';
 import './App.css';
 
 function App() {
   const [art, setArt] = useState('');
   const [copied, setCopied] = useState(false);
+  const [glitch, setGlitch] = useState(false);
+  const [flashlightOff, setFlashlightOff] = useState(false);
+  const [clicked, setClicked] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const [path, setPath] = useState(window.location.pathname);
+  const glitchTimer = useRef(null);
+  const flashlightTimer = useRef(null);
 
   const cargo = 'click';
-  const afterCargo =
-    ' github below';
+  const afterCargo = ' github below';
 
   useEffect(() => {
     fetch('/bg.txt')
@@ -17,19 +24,85 @@ function App() {
       .catch(() => setArt(''));
   }, []);
 
+  useEffect(() => {
+    const onPop = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (glitchTimer.current) window.clearTimeout(glitchTimer.current);
+      if (flashlightTimer.current) window.clearTimeout(flashlightTimer.current);
+    },
+    [],
+  );
+
+  const navigate = (to) => {
+    window.history.pushState({}, '', to);
+    setPath(to);
+  };
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(`${cargo}${afterCargo}`);
       setCopied(true);
+      setClicked(true);
       setTimeout(() => setCopied(false), 3200);
     } catch {
       // ignore
     }
   };
 
+  // Hover the copy button → run a short glitch burst, then turn the
+  // flashlight off. Leaving the button turns the flashlight back on
+  // after a 1s delay.
+  const onCopyEnter = () => {
+    setHovering(true);
+    if (flashlightTimer.current) {
+      window.clearTimeout(flashlightTimer.current);
+      flashlightTimer.current = null;
+    }
+    if (glitchTimer.current) window.clearTimeout(glitchTimer.current);
+    setFlashlightOff(false);
+    setGlitch(true);
+    glitchTimer.current = window.setTimeout(() => {
+      setGlitch(false);
+      setFlashlightOff(true);
+      glitchTimer.current = null;
+    }, 900);
+  };
+
+  const onCopyLeave = () => {
+    setHovering(false);
+    if (glitchTimer.current) {
+      window.clearTimeout(glitchTimer.current);
+      glitchTimer.current = null;
+    }
+    setGlitch(false);
+    if (flashlightTimer.current) window.clearTimeout(flashlightTimer.current);
+    flashlightTimer.current = window.setTimeout(() => {
+      setFlashlightOff(false);
+      flashlightTimer.current = null;
+    }, 1000);
+  };
+
+  if (path === '/docs') {
+    return <Docs art={art} onBack={() => navigate('/')} />;
+  }
+
   return (
     <>
-      {art && <AsciiBackground art={art} glitch={copied} />}
+      {art && <AsciiBackground art={art} glitch={glitch} flashlightOff={flashlightOff} />}
+
+      <button
+        type="button"
+        className="docs-link"
+        onClick={() => navigate('/docs')}
+      >
+        [docs]
+      </button>
+
       <main className="landing landing--visible">
         <h1 className="title">ctarnith.</h1>
         <p className="tagline">
@@ -38,8 +111,12 @@ function App() {
 
         <div className="install">
           <div
-            className={`code ${copied ? 'code--copied' : ''}`}
+            className={`code ${copied ? 'code--copied' : ''} ${
+              clicked && !hovering ? 'code--glow' : ''
+            }`}
             onClick={copy}
+            onMouseEnter={onCopyEnter}
+            onMouseLeave={onCopyLeave}
             role="button"
             tabIndex={0}
             aria-label="Copy install command"

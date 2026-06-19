@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
 import './AsciiBackground.css';
 
-export default function AsciiBackground({ art, glitch = false }) {
+export default function AsciiBackground({
+  art,
+  glitch = false,
+  flashlightOff = false,
+  excludeRect = null,
+}) {
   const maskGroupRef = useRef(null);
   const circleRef = useRef(null);
   const maskLayerRef = useRef(null);
@@ -39,6 +44,12 @@ export default function AsciiBackground({ art, glitch = false }) {
       window.removeEventListener('mouseleave', onLeave);
     };
   }, []);
+
+  useEffect(() => {
+    const layer = maskLayerRef.current;
+    if (!layer) return;
+    layer.classList.toggle('ascii-mask-layer--off', flashlightOff && !glitch);
+  }, [flashlightOff, glitch]);
 
   useEffect(() => {
     const group = maskGroupRef.current;
@@ -100,6 +111,15 @@ export default function AsciiBackground({ art, glitch = false }) {
             <g ref={maskGroupRef}>
               <circle ref={circleRef} r="380" fill="url(#spotlightGradient)" />
             </g>
+            {excludeRect && (
+              <rect
+                x={excludeRect.x}
+                y={excludeRect.y}
+                width={excludeRect.width}
+                height={excludeRect.height}
+                fill="black"
+              />
+            )}
           </mask>
         </defs>
       </svg>
