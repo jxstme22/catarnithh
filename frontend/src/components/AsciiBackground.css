@@ -1,0 +1,114 @@
+.ascii-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: #050505;
+}
+
+.ascii-mask-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.ascii-art {
+  /*
+    Scale & pan controls:
+    --scale  > 1 zooms in, < 1 zooms out.
+    --offset-x / --offset-y pan the art in pixels.
+    You can also change --cols / --rows to crop differently.
+  */
+  --cols: 94;
+  --rows: 47;
+  --scale: 1.2;
+  --offset-x: -40px;
+  --offset-y: 20px;
+
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(
+    calc(-50% + var(--offset-x)),
+    calc(-50% + var(--offset-y))
+  );
+  margin: 0;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: calc(
+    max(calc(100vw / var(--cols)), calc(100vh / var(--rows))) * var(--scale)
+  );
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: pre;
+  user-select: none;
+}
+
+.ascii-art--faint {
+  color: rgba(255, 255, 255, 0.18);
+  background: transparent;
+}
+
+.ascii-mask-layer {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  mask: url(#spotlightMask);
+  -webkit-mask: url(#spotlightMask);
+}
+
+.ascii-art--bright {
+  color: rgba(255, 255, 255, 1);
+  background: transparent;
+}
+
+.ascii-mask-layer--glitch {
+  animation: flashlight-tick 300ms ease-in-out infinite;
+}
+
+.ascii-mask-layer--glitch .ascii-art--bright {
+  animation: flashlight-art-glitch 300ms ease-in-out infinite;
+}
+
+@keyframes flashlight-tick {
+  0%,
+  72% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  82% {
+    opacity: 0.45;
+    filter: brightness(1.35) contrast(1.2);
+  }
+  92% {
+    opacity: 0.9;
+    filter: brightness(0.85);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes flashlight-art-glitch {
+  0%,
+  72% {
+    transform: translate(calc(-50% + var(--offset-x)), calc(-50% + var(--offset-y)));
+  }
+  86% {
+    transform: translate(
+      calc(-50% + var(--offset-x) + 2px),
+      calc(-50% + var(--offset-y) - 1px)
+    );
+  }
+  100% {
+    transform: translate(calc(-50% + var(--offset-x)), calc(-50% + var(--offset-y)));
+  }
+}
+
+@media (pointer: coarse) {
+  .ascii-mask-layer {
+    display: none;
+  }
+}
