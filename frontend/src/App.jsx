@@ -8,8 +8,8 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [glitch, setGlitch] = useState(false);
   const [flashlightOff, setFlashlightOff] = useState(false);
-  const [clicked, setClicked] = useState(false);
-  const [hovering, setHovering] = useState(false);
+  const [recolor, setRecolor] = useState(false);
+  const [recolorOrigin, setRecolorOrigin] = useState(null);
   const [path, setPath] = useState(window.location.pathname);
   const glitchTimer = useRef(null);
   const flashlightTimer = useRef(null);
@@ -43,12 +43,20 @@ function App() {
     setPath(to);
   };
 
-  const copy = async () => {
+  const copy = async (e) => {
+    const el = e && e.currentTarget;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      setRecolorOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    }
+    setRecolor(true);
     try {
       await navigator.clipboard.writeText(`${cargo}${afterCargo}`);
       setCopied(true);
-      setClicked(true);
-      setTimeout(() => setCopied(false), 3200);
+      setTimeout(() => {
+        setCopied(false);
+        setRecolor(false);
+      }, 3200);
     } catch {
       // ignore
     }
@@ -58,7 +66,6 @@ function App() {
   // flashlight off. Leaving the button turns the flashlight back on
   // after a 1s delay.
   const onCopyEnter = () => {
-    setHovering(true);
     if (flashlightTimer.current) {
       window.clearTimeout(flashlightTimer.current);
       flashlightTimer.current = null;
@@ -74,7 +81,6 @@ function App() {
   };
 
   const onCopyLeave = () => {
-    setHovering(false);
     if (glitchTimer.current) {
       window.clearTimeout(glitchTimer.current);
       glitchTimer.current = null;
@@ -93,7 +99,7 @@ function App() {
 
   return (
     <>
-      {art && <AsciiBackground art={art} glitch={glitch} flashlightOff={flashlightOff} />}
+      {art && <AsciiBackground art={art} glitch={glitch} flashlightOff={flashlightOff} recolor={recolor} recolorOrigin={recolorOrigin} />}
 
       <button
         type="button"
@@ -111,9 +117,7 @@ function App() {
 
         <div className="install">
           <div
-            className={`code ${copied ? 'code--copied' : ''} ${
-              clicked && !hovering ? 'code--glow' : ''
-            }`}
+            className={`code ${copied ? 'code--copied' : ''}`}
             onClick={copy}
             onMouseEnter={onCopyEnter}
             onMouseLeave={onCopyLeave}

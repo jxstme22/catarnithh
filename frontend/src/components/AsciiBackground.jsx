@@ -6,6 +6,8 @@ export default function AsciiBackground({
   glitch = false,
   flashlightOff = false,
   excludeRect = null,
+  recolor = false,
+  recolorOrigin = null,
 }) {
   const maskGroupRef = useRef(null);
   const circleRef = useRef(null);
@@ -128,6 +130,16 @@ export default function AsciiBackground({
 
       <div ref={maskLayerRef} className="ascii-mask-layer">
         <pre className="ascii-art ascii-art--bright">{art}</pre>
+      </div>
+
+      <div
+        className={`ascii-recolor-layer ${recolor ? 'ascii-recolor-layer--on' : ''}`}
+        style={{
+          '--rc-x': `${recolorOrigin ? recolorOrigin.x : window.innerWidth / 2}px`,
+          '--rc-y': `${recolorOrigin ? recolorOrigin.y : window.innerHeight / 2}px`,
+        }}
+      >
+        <pre className="ascii-art ascii-art--orange">{art}</pre>
       </div>
     </div>
   );
