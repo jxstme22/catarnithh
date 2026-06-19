@@ -84,7 +84,7 @@ function App() {
 
         <a
           className="github"
-          href="https://github.com/YOUR_USERNAME/ctarnith"
+          href="https://github.com/jxstme22/cihuy"
           target="_blank"
           rel="noreferrer"
         >
