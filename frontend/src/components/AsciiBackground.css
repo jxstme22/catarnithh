@@ -115,9 +115,9 @@
 @media (max-width: 640px) {
   .ascii-art {
     /* Mobile-only scale & pan. Tweak these freely; desktop is untouched. */
-    --scale: 2.1;
-    --offset-x: 0px;
-    --offset-y: 0px;
+    --scale: 0.6;
+    --offset-x: 30px;
+    --offset-y: 50px;
   }
 }
 
@@ -128,13 +128,17 @@
   pointer-events: none;
   clip-path: circle(0 at var(--rc-x, 50%) var(--rc-y, 50%));
   opacity: 0;
-  transition: opacity 700ms ease;
+  transition:
+    clip-path 900ms cubic-bezier(0.4, 0, 1, 1),
+    opacity 120ms ease 780ms;
 }
 
 .ascii-recolor-layer--on {
   clip-path: circle(150vmax at var(--rc-x, 50%) var(--rc-y, 50%));
   opacity: 1;
-  transition: clip-path 900ms cubic-bezier(0.22, 1, 0.36, 1) 200ms, opacity 200ms ease 200ms;
+  transition:
+    clip-path 900ms cubic-bezier(0, 0, 0.2, 1),
+    opacity 100ms ease;
 }
 
 .ascii-art--orange {
@@ -150,5 +154,12 @@
 @media (pointer: coarse) {
   .ascii-mask-layer {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ascii-recolor-layer,
+  .ascii-recolor-layer--on {
+    transition: none;
   }
 }
