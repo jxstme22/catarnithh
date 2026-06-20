@@ -53,8 +53,8 @@ function App() {
   const flashlightTimer = useRef(null);
   const copyTimer = useRef(null);
 
-  const cargo = 'click';
-  const afterCargo = ' github below';
+  const cargo = 'git clone';
+  const afterCargo = ' https://github.com/jxstme22/catarnith';
 
   useEffect(() => {
     fetch('/bg.txt')
