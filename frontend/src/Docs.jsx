@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import AsciiBackground from './components/AsciiBackground';
+import changelog from '../changelog.md?raw';
 import docsEn from '../docs.md?raw';
 import docsId from '../docs.id.md?raw';
 import './Docs.css';
@@ -12,6 +13,11 @@ const DOCS = {
 const LANG_LABELS = {
   en: 'EN',
   id: 'ID',
+};
+
+const VIEW_LABELS = {
+  docs: 'docs',
+  changelog: 'changelog',
 };
 
 function parseInline(text) {
@@ -120,9 +126,20 @@ function parseMarkdown(markdown) {
 
     if (/^\s*[-*]\s+/.test(line)) {
       const items = [];
-      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*[-*]\s+/, '').trim());
-        index += 1;
+      while (index < lines.length) {
+        if (/^\s*[-*]\s+/.test(lines[index])) {
+          items.push(lines[index].replace(/^\s*[-*]\s+/, '').trim());
+          index += 1;
+          continue;
+        }
+
+        if (/^\s{2,}\S/.test(lines[index]) && items.length) {
+          items[items.length - 1] = `${items[items.length - 1]} ${lines[index].trim()}`;
+          index += 1;
+          continue;
+        }
+
+        break;
       }
       blocks.push({ type: 'list', ordered: false, items });
       continue;
@@ -130,9 +147,20 @@ function parseMarkdown(markdown) {
 
     if (/^\s*\d+\.\s+/.test(line)) {
       const items = [];
-      while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index])) {
-        items.push(lines[index].replace(/^\s*\d+\.\s+/, '').trim());
-        index += 1;
+      while (index < lines.length) {
+        if (/^\s*\d+\.\s+/.test(lines[index])) {
+          items.push(lines[index].replace(/^\s*\d+\.\s+/, '').trim());
+          index += 1;
+          continue;
+        }
+
+        if (/^\s{2,}\S/.test(lines[index]) && items.length) {
+          items[items.length - 1] = `${items[items.length - 1]} ${lines[index].trim()}`;
+          index += 1;
+          continue;
+        }
+
+        break;
       }
       blocks.push({ type: 'list', ordered: true, items });
       continue;
@@ -247,8 +275,10 @@ export default function Docs({ art, onBack }) {
   const closeButtonRef = useRef(null);
   const [rect, setRect] = useState(null);
   const [language, setLanguage] = useState('en');
+  const [activeView, setActiveView] = useState('docs');
   const [expanded, setExpanded] = useState(false);
-  const markdown = DOCS[language];
+  const markdown = activeView === 'docs' ? DOCS[language] : changelog;
+  const title = activeView === 'docs' ? 'docs/' : 'changelog/';
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -310,6 +340,12 @@ export default function Docs({ art, onBack }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [expanded]);
 
+  useEffect(() => {
+    document.querySelectorAll('.docs-content').forEach((node) => {
+      node.scrollTop = 0;
+    });
+  }, [activeView, language]);
+
   const closeExpanded = () => {
     setExpanded(false);
     expandButtonRef.current?.focus();
@@ -326,19 +362,30 @@ export default function Docs({ art, onBack }) {
       </button>
 
       <div className="docs-actions" aria-label="Documentation controls">
-        <div className="docs-language" aria-label="Language">
-          {Object.keys(DOCS).map((lang) => (
-            <button
-              type="button"
-              key={lang}
-              className={`docs-control ${language === lang ? 'docs-control--active' : ''}`}
-              onClick={() => setLanguage(lang)}
-              aria-pressed={language === lang}
-            >
-              [{LANG_LABELS[lang]}]
-            </button>
-          ))}
+        <div className="docs-view-tabs" aria-label="Content">
+          <button
+            type="button"
+            className="docs-control"
+            onClick={() => setActiveView(activeView === 'docs' ? 'changelog' : 'docs')}
+          >
+            [{VIEW_LABELS[activeView === 'docs' ? 'changelog' : 'docs']}]
+          </button>
         </div>
+        {activeView === 'docs' && (
+          <div className="docs-language" aria-label="Language">
+            {Object.keys(DOCS).map((lang) => (
+              <button
+                type="button"
+                key={lang}
+                className={`docs-control ${language === lang ? 'docs-control--active' : ''}`}
+                onClick={() => setLanguage(lang)}
+                aria-pressed={language === lang}
+              >
+                [{LANG_LABELS[lang]}]
+              </button>
+            ))}
+          </div>
+        )}
         {isExpanded ? (
           <button
             type="button"
@@ -361,7 +408,7 @@ export default function Docs({ art, onBack }) {
       </div>
 
       <div className="docs-content">
-        <h1 className="docs-title">docs/</h1>
+        <h1 className="docs-title">{title}</h1>
         <MarkdownDoc markdown={markdown} />
       </div>
     </>
@@ -383,7 +430,7 @@ export default function Docs({ art, onBack }) {
           ref={modalRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Documentation"
+          aria-label={activeView === 'docs' ? 'Documentation' : 'Changelog'}
         >
           <div className="docs-panel docs-panel--expanded">
             {renderSurface(true)}

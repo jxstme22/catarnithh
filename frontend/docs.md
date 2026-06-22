@@ -1,215 +1,62 @@
 # Catarnith Documentation
 
-Catarnith is a terminal-first Solana trading app for Pump.fun-style markets. It
-combines an interactive TUI, a paper-first autonomous scanner, and a gated live
-execution path behind one local configuration file: `config.toml`.
+Catarnith is a terminal-first Solana Pump.fun trading app. It combines a TUI,
+paper trading, guarded live execution, an autonomous scanner, copy trade, and
+panic-sell tooling around one local runtime profile: `config.toml`.
 
-Catarnith does not create or launch tokens. It observes on-chain activity,
-filters fresh mint candidates, evaluates risk, and either simulates trades in
-paper mode or sends real Pump.fun transactions only after live mode is
-explicitly armed.
+Catarnith does not create or launch tokens. It only observes existing Pump.fun
+markets, filters candidates, applies risk rules, and either simulates orders in
+paper mode or broadcasts live transactions after explicit live gates pass.
 
-## Project Summary
+## Project Description
 
-Catarnith is built for operators who want fast feedback, strong guardrails, and
-repeatable local configuration.
-
-| Area | Description |
+| Area | What It Does |
 | --- | --- |
-| Main terminal | `catarnith` opens a mode picker, settings editor, paper trade screen, live trade screen, and panic-sell flow. |
-| Autonomous bot | `bot` runs the multi-mint scanner/trader loop using `config.toml`. |
-| Live helper | `live_execute` performs one-shot buy/sell execution and powers panic-sell paths. |
-| Default safety | Paper mode is the default. Live trading is locked unless multiple config and wallet checks pass. |
-| Output | Runtime journals and SQLite state are written under `journals/` by default. |
+| `catarnith` | Main terminal app with mode picker, Settings, paper trade, live trade, Auto Bot launcher, logs, and panic-sell UI. |
+| `bot` | Autonomous scanner/trader loop. Used directly or through `[1] Auto Bot` in the TUI. |
+| `live_execute` | One-shot live buy/sell helper used by panic-sell and advanced CLI workflows. |
+| `config.toml` | Single local runtime profile for paper, live, and Auto Bot. |
+| `.env` | Local secrets and machine-specific overrides. |
+| `journals/` | JSONL journals, SQLite position state, reports, and runtime evidence. |
 
-## Runtime Modes
-
-```text
-[1] Auto Bot     autonomous scanner/trader loop
-[2] Live Trade   single live trade flow with real SOL, if armed
-[3] Paper Trade  simulated trading, no real orders
-[S] Settings     wallet, keys, buy size, risk, and runtime knobs
-```
-
-Selecting Live in the TUI does not bypass live-safety checks. The config must
-still be deliberately armed.
-
-## Using The TUI
-
-Run the installed binary with:
-
-```bash
-catarnith
-```
-
-If you built locally without installing:
-
-```bash
-./target/release/catarnith
-```
-
-The bottom footer always shows the valid keys for the current screen.
-
-### First Run
-
-When Catarnith cannot find `config.toml` or `.env`, it opens Settings first.
-Fill the required fields, press `Enter` to save, then return to the mode picker.
-Saving writes `config.toml` and matching keys in `.env`.
-
-### Global Keys
-
-| Key | Action |
-| --- | --- |
-| `T` | Cycle terminal theme. |
-| `L` | Toggle the log panel. |
-| `Q` | Quit from non-settings screens. |
-| `Ctrl-C` | Quit from any screen. |
-| `Esc` | Back, cancel, or return to menu depending on screen. |
-
-Global letter shortcuts are disabled while typing in Settings so values such as
-wallet keys and RPC URLs can be entered normally.
-
-### Mode Picker
-
-| Key | Action |
-| --- | --- |
-| `1` | Open Auto Bot setup. |
-| `2` | Enter Live Trade mode. |
-| `3` | Enter Paper Trade mode. |
-| `S` | Open Settings. |
-| `T` | Cycle theme. |
-| `Q` | Quit. |
-
-The picker also shows the active config path, normally `config.toml`.
-
-### Settings
-
-Settings is the main operator editor. It covers wallet, keys, trading size, and
-risk controls.
-
-| Key | Action |
-| --- | --- |
-| `Tab` / `Down` | Move to next field. |
-| `Shift-Tab` / `Up` | Move to previous field. |
-| `Left` / `Right` | Change choices such as theme, mode, pair scope, or advanced toggle. |
-| Type text | Edit the active text field. |
-| `Backspace` | Delete one character from the active text field. |
-| `Enter` | Save settings. |
-| `Esc` | Return to the mode picker without starting a trade. |
-
-Editable fields include:
-
-- Wallet private key/base58 input
-- Buy size in SOL
-- Helius API key
-- Fallback RPC URL
-- Jupiter API key
-- Slippage in bps
-- Max hold seconds
-- Theme
-- Mode: Paper or Live
-- Pair scope: Mayhem-only or all Pump.fun
-- Advanced risk: take-profit, stop-loss, max open positions, daily loss limit
-
-Saving Settings does not automatically arm live trading. Live still needs the
-explicit live-mode checklist later in this document.
-
-### Auto Bot Setup
-
-Press `1` from the mode picker to configure the autonomous scanner before it
-starts. The controls are the same as Settings, except `Enter` saves and starts
-the bot.
-
-Auto Bot setup includes:
-
-- Mode
-- Pair scope
-- Buy size
-- Slippage
-- Max hold
-- Stream age limit
-- Buy deadline
-- Advanced options: create slot lag, backfill, full transaction fetch, curve
-  exit quotes, confirmation polling, fallback read behavior
-
-While the bot is running:
-
-| Key | Action |
-| --- | --- |
-| `Esc` | Stop the bot. |
-| `Q` | Quit. |
-| `L` | Toggle logs. |
-
-After the bot stops, press `Esc` again to return to the menu.
-
-### Paper Trade And Live Trade Screens
-
-Paper and Live Trade share the same visual flow:
-
-```text
-Welcome -> Scanning -> Evaluating -> Holding -> Selling -> Result
-```
-
-| Screen | Main Action |
-| --- | --- |
-| Welcome | Press any key to start scanning. |
-| Scanning | Catarnith listens for fresh candidate events. |
-| Evaluating | Candidate is being checked against evidence, strategy, and risk. |
-| Holding | Press `Enter` to sell the held position. |
-| Selling | Wait for paper fill or live sell result. |
-| Result | Press `Enter` to trade again or `Esc` to return to menu. |
-
-If a position is open and you press `Esc`, Catarnith asks for confirmation. If
-you leave, the position stays open; it is not auto-sold just because you left
-the screen.
-
-### Logs
-
-Press `L` on non-settings screens to show or hide the log panel. The newest
-messages stay near the bottom. Execution, sell, panic, and error-related lines
-are highlighted so operational issues are easier to spot.
-
-### Panic Sell
-
-For direct panic-sell from the shell:
-
-```bash
-catarnith panic-sell <MINT> --config config.toml
-```
-
-The command forwards to the live execution helper with the panic path enabled.
-It still uses the configured wallet, RPC, slippage, and live safety settings.
+Paper mode is the default safe path. Live mode is available, but it requires a
+dedicated wallet, live arming flags, risk caps, and wallet/RPC safety checks.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    TUI["catarnith TUI"] --> Config["config.toml + .env"]
-    Bot["bot autonomous scanner"] --> Config
-    LiveCLI["live_execute helper"] --> Config
+    User["Operator"] --> TUI["catarnith TUI"]
+    User --> CLI["CLI subcommands"]
 
-    Config --> Validate["Config validation and live gates"]
-    Validate --> Ingest["Solana stream ingestion"]
+    TUI --> Config["config.toml + .env"]
+    CLI --> Config
+    Config --> Validate["Config validation + live gates"]
 
-    Helius["Helius RPC / WebSocket"] --> Ingest
-    Pulse["Optional Pulse JSONL"] --> Discovery
+    Validate --> Single["Paper/Live single trade"]
+    Validate --> AutoBot["Auto Bot"]
+    Validate --> Panic["panic-sell"]
 
-    Ingest --> Decode["Transaction decoder"]
+    Helius["Helius RPC/WebSocket"] --> Ingest["Ingest streams"]
+    Pulse["Optional Pulse JSONL"] --> Discovery["Discovery registry"]
+    Ingest --> Decode["Decoder"]
     Decode --> Classify["Classifier"]
-    Classify --> Evidence["Mayhem evidence gates"]
-    Evidence --> Discovery["Discovery registry"]
-    Discovery --> Strategy["Strategy"]
+    Classify --> Discovery
+    Discovery --> Strategy["Strategy + copy trade"]
     Strategy --> Risk["Risk engine"]
     Risk --> Order["Order builder"]
 
-    Order --> Paper["Paper executor"]
-    Order --> Live["Live Pump.fun executor"]
-    Paper --> Positions["Position manager"]
-    Live --> Positions
-    Positions --> Exit["Exit loop"]
-    Exit --> Order
+    Single --> Ingest
+    AutoBot --> Ingest
+    Panic --> LiveExec["Live executor"]
+    Order --> PaperExec["Paper executor"]
+    Order --> LiveExec
 
-    Positions --> Journal["JSONL journal + SQLite"]
+    PaperExec --> Positions["Position manager"]
+    LiveExec --> Positions
+    Positions --> ExitLoop["Exit loop"]
+    ExitLoop --> Risk
+    Positions --> Journal["JSONL + SQLite journals"]
     Journal --> Reports["Paper/horizon reports"]
 ```
 
@@ -219,169 +66,239 @@ flowchart TD
 sequenceDiagram
     participant Stream as RPC Stream
     participant Decode as Decoder
-    participant Gate as Evidence Gate
+    participant Gate as Evidence/Market Gate
     participant Strategy as Strategy
     participant Risk as Risk
     participant Exec as Executor
     participant Journal as Journal
 
-    Stream->>Decode: Pump.fun / PumpSwap / wallet events
-    Decode->>Gate: mint, route, trade, and create-event facts
-    Gate->>Strategy: verified candidate or rejection
-    Strategy->>Risk: proposed buy/sell decision
-    Risk->>Exec: approved order or veto reason
-    Exec->>Journal: simulated fill or live execution report
-    Journal->>Strategy: restored/open position state on restart
+    Stream->>Decode: Pump.fun, PumpSwap, wallet, or Pulse event
+    Decode->>Gate: mint, route, side, create-event, wallet deltas
+    Gate->>Strategy: eligible candidate or ignore reason
+    Strategy->>Risk: buy/sell proposal
+    Risk->>Exec: approved order or veto
+    Exec->>Journal: paper fill or live execution report
+    Journal->>Strategy: restored/open positions on restart
 ```
 
-## Safety Model
+## Runtime Modes
 
-Paper mode never submits orders. It only records simulated fills and PnL in
-local journals.
+Running `catarnith` opens the mode picker:
 
-Live mode refuses to broadcast unless:
+```text
+[1] Auto Bot      autonomous scanner/trader loop
+[2] Live Trade    single live trade flow
+[3] Paper Trade   paper trading, no real orders
+[S] Settings      wallet, keys, market, buy size, live setup
+```
 
-- `mode = "live"`
-- `enable_live_trading = true`
-- `require_manual_live_unlock = false`
-- a dedicated hot-wallet key is configured
-- wallet files are outside the repository and owner-only
-- the wallet path does not look like a main/cold/treasury wallet
-- the fallback RPC is a distinct paid provider when required
-- risk caps are present and large enough for the configured buy size
-- `[live].max_balance_lamports` caps the maximum wallet balance Catarnith may
-  trade with
+The picker is the source of truth for single-trade mode. Choosing Paper forces
+paper-only execution for that run. Choosing Live forces live validation and then
+uses the live executor only if live gates are armed.
 
-This project is automation for a risky market. Treat live mode as real-money
-software and validate changes in paper mode first.
+## TUI Usage
+
+### Global Keys
+
+| Key | Action |
+| --- | --- |
+| `1`, `2`, `3`, `S` | Pick Auto Bot, Live Trade, Paper Trade, or Settings from the mode picker. |
+| `Enter` | Start, confirm, sell when prompted, or save the active setup screen. |
+| `Esc` | Back/cancel. In bot/live screens, closes the log overlay first when it is open. |
+| `Q` | Quit from non-text-entry screens. |
+| `T` | Cycle terminal theme. |
+| `L` | Open or close the larger log overlay. |
+| `Up` / `Down` | Scroll normal logs outside settings screens. |
+| `PgUp` / `PgDn` | Scroll logs faster. |
+| `Home` / `End` | Jump to oldest log line or return to tail. |
+| `Tab` / `Shift+Tab` | Move between fields in Settings and Auto Bot Setup. |
+| `Left` / `Right` | Toggle/cycle selected choices such as market, theme, live gates, copy sizing, or copy policy. |
+
+### Settings
+
+Settings is for operator-level setup:
+
+- wallet secret or wallet keypair path
+- Helius API key
+- optional fallback RPC
+- optional Jupiter API key
+- market preference: `mayhem_only`, `non_mayhem_only`, or `all_pumpfun`
+- buy size, buy slippage, and theme
+- advanced live controls: live enable, live lock, max wallet balance, max hold,
+  sell slippage, priority fee, Jito URL/tip, confirmation polling, and
+  pre-broadcast simulation
+
+Settings does not contain a paper/live mode picker. Paper vs Live is selected
+from the main mode picker.
+
+### Auto Bot Setup
+
+Auto Bot Setup appears before `[1] Auto Bot` starts. It owns bot-specific
+configuration:
+
+- direct bot mode default: paper or live
+- market preference
+- buy size, slippage, max hold, stream age, and buy deadline
+- copy trade wallet, sizing, max buy, and follow-sells toggle
+- advanced bot controls: keep-alive, max positions, max buys per mint,
+  per-mint exposure, total open exposure, daily loss, copy buy policy,
+  copy-specific caps, create slot lag, backfill, full transaction fetch, curve
+  exit quotes, confirmation polling, and fallback reads
+
+When `bot_keep_alive = true`, the TUI restarts the bot child process if it exits
+unexpectedly. Rapid repeated startup failures are stopped and surfaced in logs.
+
+### Trade Screens
+
+Paper Trade and Live Trade use the same visual lifecycle:
+
+```text
+Welcome -> Scanning -> Evaluating -> Holding -> Selling -> Result
+```
+
+| Screen | What Happens |
+| --- | --- |
+| Welcome | Press `Enter` to start scanning. |
+| Scanning | Catarnith listens for fresh candidate events. |
+| Evaluating | Candidate is checked against market, discovery, strategy, and risk rules. |
+| Holding | Press `Enter` to sell the held position. |
+| Selling | Wait for paper fill or live sell result. |
+| Result | Press `Enter` to trade again or `Esc` to return to the picker. |
+
+If a position is open and you press `Esc`, Catarnith asks for confirmation
+before leaving the trade screen.
+
+In live mode, `submitted` means the sell transaction was broadcast but not yet
+confirmed. Catarnith keeps showing the position as held until confirmation or
+reconciliation proves the inventory is gone.
+
+### Logs
+
+Press `L` to open the larger log overlay. Logs are scrollable with `PgUp`,
+`PgDn`, `Home`, and `End`. Expected lifecycle noise is cleaned up, while real
+execution, transport, panic-sell, and fatal bot errors remain visible.
 
 ## Setup
 
-### 1. Requirements
+### Requirements
 
 - Rust stable toolchain
 - Helius API key
-- Optional but recommended for live mode: distinct paid Solana RPC
-- Optional sell fallback: authenticated Jupiter API key
-- For live mode only: dedicated low-balance hot wallet
+- For live trading: a dedicated low-balance hot wallet
+- Optional live reliability: distinct paid fallback RPC
+- Optional last-resort sell fallback: authenticated Jupiter API key
 
-### 2. Create Local Config Files
+### Install From Source
+
+```bash
+git clone https://github.com/jxstme22/catarnith.git
+cd catarnith
+cargo install --path . --locked
+catarnith
+```
+
+For development without installing:
+
+```bash
+cargo run --bin catarnith
+```
+
+### Create Local Files
 
 ```bash
 cp config.example.toml config.toml
 cp .env.example .env
 ```
 
-Both `config.toml` and `.env` are ignored by git.
+Both files are gitignored. Never commit wallet keys, RPC keys, or `.env`.
 
-### 3. Fill Required Values
+### Minimum Local Values
 
 In `.env`:
 
 ```bash
 export HELIUS_API_KEY=your-helius-api-key
-export CTARNITH_FALLBACK_RPC_URL=https://your-paid-rpc.example
 ```
 
-In `config.toml`, start with:
+In `config.toml`, keep the safe defaults until paper behavior looks healthy:
 
 ```toml
 mode = "paper"
-base_buy_lamports = 13025001
+market = "mayhem_only"
 enable_live_trading = false
 require_manual_live_unlock = true
 ```
 
-Keep paper mode until the journals show behavior you trust.
+## Important Config Keys
 
-### 4. Build
-
-```bash
-cargo build --release --locked --features live-executor,tui --bins
-```
-
-Use `--locked` so Cargo uses the dependency versions pinned in `Cargo.lock`.
-
-## Configuration Reference
-
-Catarnith loads config in this order:
-
-1. Built-in defaults
-2. Selected TOML file, normally `config.toml`
-3. `.env` and exported environment overrides
-
-New setup should use `CTARNITH_*` environment variables. Legacy `MAYHEM_*`
-aliases are still accepted as fallbacks.
-
-### Core Config Keys
-
-| Key | Short Description |
+| Key | Meaning |
 | --- | --- |
-| `mode` | `"paper"` or `"live"`. Paper is the default safe mode. |
-| `helius_api_key` | Helius API key. Usually set as `HELIUS_API_KEY` in `.env`. |
-| `wallet_keypair_path` | Path to a dedicated live hot-wallet JSON keypair. |
-| `wallet_keypair_base58` | Optional base58 private key value. Prefer `.env` for secrets. |
-| `pair_scope` | `"mayhem_only"` for strict filtering or `"all_pumpfun"` for broader observation. |
-| `base_buy_lamports` | Buy size in lamports. `1 SOL = 1_000_000_000` lamports. |
-| `journal_dir` | Directory for JSONL runtime journals. |
-| `sqlite_path` | SQLite state path used for position restore. |
-
-### Discovery and Evidence Keys
-
-| Key | Short Description |
-| --- | --- |
-| `require_mayhem_evidence` | Requires trusted Mayhem evidence before entry. |
-| `allow_indirect_mayhem_candidates` | Allows weaker indirect candidates when enabled. |
-| `require_route_confirmation` | Requires observed route confirmation such as Axiom -> Pump.fun/PumpSwap. |
-| `follow_observed_sell_signals` | Allows observed sell activity to influence exits. |
-| `mayhem_mint_allowlist_path` | Optional newline-delimited verified mint allowlist. |
-| `mayhem_metadata_url_template` | Optional trusted metadata endpoint template. |
-| `pulse_mints_path` | Optional JSONL discovery feed tailed at runtime. |
-| `allow_onchain_mayhem_discovery` | Allows on-chain Mayhem evidence to verify discoveries. |
-| `require_fresh_mint_creation` | Requires create-backed fresh mint evidence. Recommended for live speed mode. |
-| `max_stream_event_age_ms` | Rejects stale stream events. |
-| `entry_deadline_ms` | Maximum local age before a buy is considered too late. |
-| `max_create_event_slot_lag` | Rejects create events too far behind the current processed slot. |
-
-### Risk and Exit Keys
-
-| Key | Short Description |
-| --- | --- |
-| `max_open_positions` | Maximum concurrent positions. |
-| `max_buys_per_mint` | Maximum buys allowed for one mint. |
-| `max_total_lamports_per_mint` | Per-mint exposure cap. |
-| `max_total_open_lamports` | Total open exposure cap. |
-| `max_daily_loss_lamports` | Rolling loss cap before new buys are vetoed. |
-| `max_failed_txs_per_minute` | Failure-rate safety cap. |
-| `max_failed_fee_burn_lamports_per_hour` | Fee-burn safety cap. |
+| `mode` | Default for direct `bot`/`scan` runs. The TUI picker overrides single-trade mode. |
+| `helius_api_key` | Helius API key, usually provided by `HELIUS_API_KEY`. |
+| `wallet_keypair_path` | Dedicated live hot-wallet JSON path. |
+| `wallet_keypair_base58` | Optional base58 secret. Prefer `.env` over TOML for secrets. |
+| `market` | `mayhem_only`, `non_mayhem_only`, or `all_pumpfun`. Legacy `pair_scope` still loads. This gates normal entries and copy-trade buys. |
+| `target_wallet` | Optional reference wallet. Leave unset unless intentionally using one. |
+| `watched_wallets` | Optional additional wallets to watch. |
+| `base_buy_sol` | Base buy size in SOL. Legacy `base_buy_lamports` still loads. |
 | `max_slippage_bps` | Buy slippage ceiling in basis points. |
-| `paper_slippage_bps` | Adverse paper-fill slippage model. |
-| `paper_fee_lamports_floor` | Minimum paper fee applied to simulated fills. |
-| `take_profit_bps` | Take-profit trigger. |
-| `take_profit_sell_bps` | Portion to sell after take-profit, in basis points. |
-| `stop_loss_bps` | Stop-loss trigger. |
 | `max_hold_seconds` | Forced exit timer. |
-| `enable_take_profit_exit` | Enables take-profit exit checks. |
-| `enable_stop_loss_exit` | Enables stop-loss exit checks. |
-| `enable_curve_exit_quotes` | Uses curve quotes for exit valuation. |
+| `max_open_positions` | Concurrent open position cap. |
+| `max_buys_per_mint` | Total buy-attempt cap per mint. |
+| `max_total_sol_per_mint` | Per-mint exposure cap in SOL. |
+| `max_total_open_sol` | Total open exposure cap in SOL. |
+| `max_daily_loss_sol` | Daily loss stop for new entries in SOL. |
+| `backfill_limit` | Startup history depth. Keep `0` for live. |
+| `journal_dir` | JSONL journal directory. |
+| `sqlite_path` | SQLite position state path. |
 
-### Runtime Stream Keys
+### Market Selection
 
-| Key | Short Description |
+- `mayhem_only`: enter only when Mayhem evidence is allowed/verified. The
+  single-trade scanner waits for a positive Pump.fun curve Mayhem flag.
+- `non_mayhem_only`: fresh Pump.fun create/create-v2 entries only. It rejects
+  direct Mayhem evidence, indirect Mayhem candidates, and copied Mayhem buys.
+  The single-trade scanner requires `is_mayhem_mode = false` from the curve; if
+  the flag is unavailable, the candidate is skipped instead of guessed.
+- `all_pumpfun`: allow both Mayhem and non-Mayhem Pump.fun candidates that pass
+  the rest of the filters.
+
+## Copy Trade
+
+Copy trade is part of Auto Bot. It follows a configured source wallet but still
+uses Catarnith's strategy, risk engine, executors, journals, and position
+manager.
+
+| Key | Meaning |
 | --- | --- |
-| `subscribe_commitment` | Stream commitment, usually `"processed"`. |
-| `subscribe_programs` | Subscribes to configured program logs. |
-| `enable_transaction_subscribe` | Enables transactionSubscribe when the RPC plan supports it. |
-| `enable_logs_fallback` | Falls back to logsSubscribe when transactionSubscribe is unavailable. |
-| `fetch_full_transaction` | Fetches full transactions for richer decoding. |
-| `use_observed_entry_fill` | Paper-only model that prices entries from observed signal transactions. |
-| `backfill_limit` | Startup backfill depth. Keep `0` for live mode. |
+| `copy_trade_enabled` | Enables copy trade. |
+| `copy_trade_wallet` | Source wallet to follow. |
+| `copy_trade_sizing` | `fixed`, `mirror`, or `scaled`. |
+| `copy_trade_scale_bps` | Scale factor for `scaled`; `10000` is 1.0x. |
+| `copy_trade_max_buy_sol` | Hard cap for copied buy size in SOL. |
+| `copy_trade_buy_policy` | `first_only` or `accumulate`. |
+| `copy_trade_max_buys_per_mint` | Copy-specific buy limit per mint. |
+| `copy_trade_min_source_buy_sol` | Ignore source buys below this size; `0` disables the filter. |
+| `copy_trade_follow_sells` | Sell when the source wallet sells a mint Catarnith holds. |
+| `copy_trade_max_hold_seconds` | Forced exit timer for copy-entered positions. |
+| `copy_trade_take_profit_bps` | Copy-specific take-profit trigger; `0` disables it. |
+| `copy_trade_take_profit_sell_bps` | Portion sold on copy take-profit. |
+| `copy_trade_stop_loss_bps` | Copy-specific stop-loss trigger; `0` disables it. |
+| `copy_trade_allow_pumpswap` | Paper/research only. Live PumpSwap copy execution is blocked. |
 
-### Live Execution Keys
+Copy attribution is strict: a copied transaction must come from the copied
+wallet stream or have that wallet as signer. Transactions that only mention the
+wallet as an account key are ignored.
 
-The `[live]` table tunes real transaction sending.
+Copy-trade buys obey `market`. `non_mayhem_only` rejects direct, indirect, or
+verified Mayhem signals; `mayhem_only` requires Mayhem evidence; `all_pumpfun`
+allows either side of the Pump.fun market.
 
-| `[live]` Key | Env Override | Short Description |
+## Live Configuration
+
+Live-only execution tuning lives in `[live]`.
+
+| `[live]` Key | Env Override | Meaning |
 | --- | --- | --- |
 | `compute_unit_limit` | `CTARNITH_LIVE_COMPUTE_UNIT_LIMIT` | Compute units per trade transaction. |
 | `compute_unit_price_microlamports` | `CTARNITH_LIVE_COMPUTE_UNIT_PRICE_MICROLAMPORTS` | Priority fee. |
@@ -391,136 +308,135 @@ The `[live]` table tunes real transaction sending.
 | `confirmation_timeout_ms` | `CTARNITH_LIVE_CONFIRMATION_TIMEOUT_MS` | Buy confirmation timeout. |
 | `sell_confirmation_timeout_ms` | `CTARNITH_LIVE_SELL_CONFIRMATION_TIMEOUT_MS` | Sell confirmation timeout. |
 | `confirmation_poll_ms` | `CTARNITH_LIVE_CONFIRMATION_POLL_MS` | Confirmation polling interval. |
-| `pre_broadcast_simulation` | `CTARNITH_LIVE_PRE_BROADCAST_SIMULATION` | Simulates before broadcast when enabled. |
+| `pre_broadcast_simulation` | `CTARNITH_LIVE_PRE_BROADCAST_SIMULATION` | Simulate before broadcast. |
 | `settlement_commitment` | `CTARNITH_LIVE_SETTLEMENT_COMMITMENT` | `processed`, `confirmed`, or `finalized`. |
-| `sell_slippage_bps` | `CTARNITH_LIVE_SELL_SLIPPAGE_BPS` | Sell slippage; omit to reuse `max_slippage_bps`. |
-| `max_balance_lamports` | `CTARNITH_LIVE_MAX_BALANCE_LAMPORTS` | Refuses to trade above this wallet balance. |
-| `jito_block_engine_url` | `CTARNITH_LIVE_JITO_BLOCK_ENGINE_URL` | Optional Jito panic-sell path. |
-| `jito_tip_account` | `CTARNITH_LIVE_JITO_TIP_ACCOUNT` | Jito tip account. |
-| `jito_tip_lamports` | `CTARNITH_LIVE_JITO_TIP_LAMPORTS` | Jito tip amount. |
-| `jupiter_timeout_ms` | `CTARNITH_LIVE_JUPITER_TIMEOUT_MS` | Timeout for Jupiter sell fallback. |
+| `sell_slippage_bps` | `CTARNITH_LIVE_SELL_SLIPPAGE_BPS` | Sell slippage. |
+| `max_balance_sol` | `CTARNITH_LIVE_MAX_BALANCE_SOL` | Refuse to trade above this wallet balance. |
+| `jito_block_engine_url` | `CTARNITH_LIVE_JITO_BLOCK_ENGINE_URL` | Optional Jito broadcast path. |
+| `jito_tip_account` | `CTARNITH_LIVE_JITO_TIP_ACCOUNT` | Optional Jito tip account. |
+| `jito_tip_sol` | `CTARNITH_LIVE_JITO_TIP_SOL` | Jito tip amount in SOL. Legacy lamport keys still load. |
+| `jupiter_timeout_ms` | `CTARNITH_LIVE_JUPITER_TIMEOUT_MS` | Jupiter sell fallback timeout. |
 
 ## Important Environment Variables
 
-| Variable | Description |
+Use `CTARNITH_*` names for new setup. Legacy `MAYHEM_*` names are read as
+fallbacks for old local scripts.
+
+| Variable | Meaning |
 | --- | --- |
-| `HELIUS_API_KEY` | Primary Helius API key. Used to derive the main RPC/WebSocket URLs. |
-| `HELIUS_API_KEY_FILE` | Optional path to a file containing the Helius API key. |
-| `CTARNITH_LIVE_CONFIG` | Overrides the active config path. Defaults to `config.toml`. |
-| `CTARNITH_FALLBACK_RPC_URL` | Distinct paid Solana RPC used by live broadcast/fallback paths. |
-| `JUP_API_KEY` | Optional Jupiter API key for last-resort sell fallback. |
-| `CTARNITH_WALLET_KEYPAIR_PATH` | Live hot-wallet keypair file path. |
-| `CTARNITH_WALLET_KEYPAIR_BASE58` | Live hot-wallet base58 private key. Wins over keypair path. |
-| `CTARNITH_LIVE_BASE_BUY_LAMPORTS` | Env override for buy size. |
-| `CTARNITH_LIVE_MAX_SLIPPAGE_BPS` | Env override for buy slippage. |
-| `CTARNITH_PAIR_SCOPE` | Env override for `pair_scope`. |
-| `CTARNITH_LIVE_SELL_SLIPPAGE_BPS` | Sell-specific slippage override. |
-| `CTARNITH_LIVE_MAX_HOLD_SECONDS` | Env override for forced exit timer. |
-| `CTARNITH_LIVE_PARALLEL_FALLBACK_READS` | Reads from primary and fallback RPCs in parallel when set. |
-| `CTARNITH_LIVE_WAIT_FOR_BUY_CONFIRMATION` | Waits for buy confirmation before continuing when true. |
+| `HELIUS_API_KEY` | Primary Helius API key. |
+| `HELIUS_API_KEY_FILE` | Optional file containing the Helius key. |
+| `CTARNITH_LIVE_CONFIG` | Active config path. Defaults to `config.toml`. |
+| `CTARNITH_FALLBACK_RPC_URL` | Optional distinct paid fallback RPC. |
+| `JUP_API_KEY` | Optional authenticated Jupiter API key for last-resort sell fallback. |
+| `CTARNITH_WALLET_KEYPAIR_PATH` | Live wallet keypair JSON path. |
+| `CTARNITH_WALLET_KEYPAIR_BASE58` | Live wallet base58 secret. Wins over keypair path. |
+| `CTARNITH_MARKET` | Overrides `market`. |
+| `CTARNITH_LIVE_BASE_BUY_SOL` | Overrides buy size. |
+| `CTARNITH_LIVE_MAX_SLIPPAGE_BPS` | Overrides buy slippage. |
+| `CTARNITH_LIVE_MAX_HOLD_SECONDS` | Overrides max hold. |
+| `CTARNITH_LIVE_ENABLE_LIVE_TRADING` | Overrides live enable gate. |
+| `CTARNITH_LIVE_REQUIRE_MANUAL_LIVE_UNLOCK` | Overrides manual live lock. |
+| `CTARNITH_LIVE_PARALLEL_FALLBACK_READS` | Enables parallel primary/fallback reads. |
+| `CTARNITH_LIVE_WAIT_FOR_BUY_CONFIRMATION` | Waits for buy confirmation when true. |
 | `CTARNITH_LIVE_SKIP_POST_TRADE_BALANCES` | Skips post-trade balance reads when true. |
-| `CTARNITH_SCAN_SOL_PRICE_USD` | Pins SOL/USD in the scan UI and skips the startup price fetch. |
+| `CTARNITH_SCAN_SOL_PRICE_USD` | Pins SOL/USD in the scan TUI. |
 | `CTARNITH_SCAN_SKIP_PICKER` | Skips the mode picker and enters scan mode. |
 | `CTARNITH_LIVE_PANIC_SEND_TIMEOUT_MS` | Panic-sell send timeout. |
 | `CTARNITH_LIVE_PANIC_BALANCE_TIMEOUT_MS` | Panic-sell balance-read timeout. |
 
 ## How To Run
 
-### Interactive Terminal
+Installed commands:
 
 ```bash
-cargo run --features live-executor,tui --bin catarnith
+catarnith
+catarnith --config config.toml scan
+catarnith bot --config config.toml
+catarnith panic-sell <MINT> --config config.toml
+live_execute --config config.toml --side sell --mint <MINT>
 ```
 
-### Skip Picker And Enter Trade Screen
+Development equivalents:
 
 ```bash
-cargo run --features live-executor,tui --bin catarnith -- scan
+cargo run --bin catarnith
+cargo run --bin catarnith -- --config config.toml scan
+cargo run --bin bot -- --config config.toml
+cargo run --bin live_execute -- --config config.toml --side sell --mint <MINT>
 ```
 
-### Autonomous Bot
+Build all release binaries:
 
 ```bash
-cargo run --features live-executor --bin bot -- --config config.toml
+cargo build --release --locked --bins
 ```
 
-### One-Shot Live Execute
+Install all binaries onto your PATH:
 
 ```bash
-cargo run --features live-executor --bin live_execute -- \
-  --config config.toml --side sell --mint <MINT>
-```
-
-### Panic Sell Through Catarnith
-
-```bash
-cargo run --features live-executor,tui --bin catarnith -- \
-  panic-sell <MINT> --config config.toml
-```
-
-### Build Release Binaries
-
-```bash
-cargo build --release --locked --features live-executor,tui --bins
-```
-
-Then run:
-
-```bash
-./target/release/catarnith
-./target/release/bot --config config.toml
-./target/release/live_execute --config config.toml --side sell --mint <MINT>
-```
-
-### Test
-
-```bash
-cargo test --features "live-executor tui"
+cargo install --path . --locked
 ```
 
 ## Live Mode Checklist
 
-Before live mode:
+Before live broadcast:
 
-1. Keep paper mode running long enough to understand journal behavior.
-2. Set `mode = "live"`.
+1. Validate behavior in paper mode first.
+2. Select `[2] Live Trade` in the picker, or set `mode = "live"` for direct runs.
 3. Set `enable_live_trading = true`.
 4. Set `require_manual_live_unlock = false`.
-5. Use a dedicated hot wallet, not a main or treasury wallet.
-6. Store wallet files outside the repository and run `chmod 600 <wallet-file>`.
-7. Set `CTARNITH_FALLBACK_RPC_URL` to a distinct paid RPC.
-8. Keep `[live].max_balance_lamports` low.
-9. Keep `backfill_limit = 0`.
-10. Re-run tests after config or code changes.
+5. Configure a dedicated hot wallet with low balance.
+6. Keep wallet files outside the repo and owner-only (`chmod 600`).
+7. Keep `[live].max_balance_sol` low.
+8. Keep live `backfill_limit = 0`.
+9. If `CTARNITH_FALLBACK_RPC_URL` is set, make it distinct from the primary RPC.
+10. Re-run tests after code or config changes.
 
 ## Runtime Output
 
-By default, Catarnith writes local runtime output under:
+Runtime output defaults to `journals/bot/` for the example config. Important
+files include:
 
-```text
-journals/bot/
-```
-
-Important files include:
-
-| File | Description |
+| File | Meaning |
 | --- | --- |
 | `raw_events.jsonl` | Streamed raw events. |
-| `decisions.jsonl` | Strategy decisions and risk vetoes. |
+| `decoded_transactions.jsonl` | Decoded transaction facts. |
+| `discovery_signals.jsonl` | Discovery evidence. |
+| `decisions.jsonl` | Strategy decisions and ignore/veto reasons. |
 | `orders.jsonl` | Orders created from approved decisions. |
 | `executions.jsonl` | Paper or live execution reports. |
 | `positions.jsonl` | Position snapshots. |
 | `metrics_snapshots.jsonl` | Runtime heartbeat metrics. |
 | SQLite file | Position restore state across restarts. |
 
+These files are intentionally gitignored. They are safe to clear for old paper
+or test runs, but keep them when you need live-trade evidence, sell/retry
+debugging, or open-position recovery after a restart.
+
+## Verification
+
+Recommended checks:
+
+```bash
+cargo fmt
+cargo test
+cargo clippy --all-targets -- -D warnings
+git diff --check
+```
+
 ## Troubleshooting
 
 | Symptom | What To Check |
 | --- | --- |
-| Config will not load | Confirm `config.toml` exists and parses as TOML. |
+| Settings opens immediately | Local setup is missing or incomplete. Save Settings once. |
+| Config will not load | Check TOML syntax and the active config path shown in the picker. |
 | Missing Helius key | Set `HELIUS_API_KEY`, `HELIUS_API_KEY_FILE`, or `helius_api_key`. |
-| Live mode refuses to start | Check live arming flags, wallet path, fallback RPC, and risk caps. |
-| No candidates appear | Check RPC/WebSocket access, stream fallback, and evidence gates. |
-| Decisions are rejected | Inspect `decisions.jsonl` for `risk_veto_reason`. |
-| Orders are created but no fills | Inspect `executions.jsonl`, slippage, RPC errors, and wallet balance. |
-| Wallet balance blocked | Lower wallet balance or raise `[live].max_balance_lamports` deliberately. |
+| Live refuses to start | Check live gates, wallet source, max balance, risk caps, and optional fallback RPC. |
+| No candidates appear | Check RPC/WebSocket access, stream fallback, market selection, and evidence gates. |
+| Copy trade does not buy | Check `copy_trade_enabled`, source wallet, full transaction fetch, source buy size, max buys per mint, and whether the copied mint is blocked by `market`. |
+| Non-Mayhem enters Mayhem or old tokens | It should not. `non_mayhem_only` requires a fresh create/create-v2 event and explicit curve `is_mayhem_mode = false`; unknown flags and Mayhem signals are skipped. |
+| Logs are hard to inspect | Press `L`, then use `PgUp`, `PgDn`, `Home`, and `End`. |
+
+Nothing here is financial advice. Treat live mode as real-money software and
+test with tiny balances only after paper validation.

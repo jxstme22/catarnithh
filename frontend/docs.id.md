@@ -1,218 +1,64 @@
 # Dokumentasi Catarnith
 
-Catarnith adalah aplikasi trading Solana berbasis terminal untuk pasar bergaya
-Pump.fun. Project ini menggabungkan TUI interaktif, scanner otonom yang
-paper-first, dan jalur eksekusi live yang dikunci oleh guardrail lewat satu file
-konfigurasi lokal: `config.toml`.
+Catarnith adalah aplikasi trading Solana Pump.fun berbasis terminal. Project ini
+menggabungkan TUI, paper trading, live execution yang dikunci guardrail, scanner
+otonom, copy trade, dan panic-sell tooling dengan satu profil runtime lokal:
+`config.toml`.
 
-Catarnith tidak membuat atau meluncurkan token. Aplikasi ini mengamati aktivitas
-on-chain, memfilter kandidat mint baru, mengevaluasi risiko, lalu mensimulasikan
-trade di paper mode atau mengirim transaksi Pump.fun sungguhan hanya ketika live
-mode sudah diaktifkan secara eksplisit.
+Catarnith tidak membuat atau meluncurkan token. Aplikasi ini hanya mengamati
+market Pump.fun yang sudah ada, memfilter kandidat, menerapkan risk rule, lalu
+mensimulasikan order di paper mode atau broadcast transaksi live setelah semua
+live gate lolos.
 
-## Ringkasan Project
+## Deskripsi Project
 
-Catarnith dibuat untuk operator yang membutuhkan feedback cepat, guardrail yang
-tegas, dan konfigurasi lokal yang mudah diulang.
-
-| Area | Deskripsi |
+| Area | Fungsi |
 | --- | --- |
-| Terminal utama | `catarnith` membuka mode picker, settings editor, paper trade, live trade, dan panic-sell flow. |
-| Bot otonom | `bot` menjalankan loop scanner/trader multi-mint dengan `config.toml`. |
-| Helper live | `live_execute` menjalankan buy/sell satu kali dan dipakai oleh panic-sell path. |
-| Safety default | Paper mode adalah default. Live trading tetap terkunci sampai semua validasi config dan wallet lolos. |
-| Output | Journal runtime dan state SQLite ditulis ke `journals/` secara default. |
+| `catarnith` | Aplikasi terminal utama dengan mode picker, Settings, paper trade, live trade, Auto Bot launcher, logs, dan panic-sell UI. |
+| `bot` | Loop scanner/trader otonom. Bisa dipakai langsung atau lewat `[1] Auto Bot` di TUI. |
+| `live_execute` | Helper live buy/sell satu kali untuk panic-sell dan workflow CLI advanced. |
+| `config.toml` | Satu profil runtime lokal untuk paper, live, dan Auto Bot. |
+| `.env` | Secret lokal dan override khusus mesin. |
+| `journals/` | Journal JSONL, state SQLite posisi, report, dan evidence runtime. |
 
-## Mode Runtime
-
-```text
-[1] Auto Bot     loop scanner/trader otonom
-[2] Live Trade   trade live satu per satu dengan SOL sungguhan, jika sudah armed
-[3] Paper Trade  trading simulasi, tanpa order sungguhan
-[S] Settings     wallet, key, buy size, risk, dan runtime knobs
-```
-
-Memilih Live di TUI tidak melewati safety check. Config tetap harus diaktifkan
-dengan sengaja.
-
-## Cara Menggunakan TUI
-
-Jalankan binary yang sudah di-install dengan:
-
-```bash
-catarnith
-```
-
-Jika hanya build lokal tanpa install:
-
-```bash
-./target/release/catarnith
-```
-
-Footer di bagian bawah TUI selalu menampilkan tombol yang valid untuk screen
-yang sedang aktif.
-
-### First Run
-
-Jika Catarnith tidak menemukan `config.toml` atau `.env`, aplikasi akan membuka
-Settings terlebih dahulu. Isi field wajib, tekan `Enter` untuk menyimpan, lalu
-kembali ke mode picker. Save akan menulis `config.toml` dan key yang sesuai di
-`.env`.
-
-### Tombol Global
-
-| Tombol | Aksi |
-| --- | --- |
-| `T` | Ganti theme terminal. |
-| `L` | Tampilkan/sembunyikan panel log. |
-| `Q` | Quit dari screen non-settings. |
-| `Ctrl-C` | Quit dari screen apa pun. |
-| `Esc` | Back, cancel, atau kembali ke menu sesuai screen. |
-
-Shortcut huruf global dimatikan saat mengetik di Settings supaya value seperti
-wallet key dan RPC URL bisa diisi normal.
-
-### Mode Picker
-
-| Tombol | Aksi |
-| --- | --- |
-| `1` | Buka Auto Bot setup. |
-| `2` | Masuk Live Trade mode. |
-| `3` | Masuk Paper Trade mode. |
-| `S` | Buka Settings. |
-| `T` | Ganti theme. |
-| `Q` | Quit. |
-
-Mode picker juga menampilkan path config aktif, biasanya `config.toml`.
-
-### Settings
-
-Settings adalah editor utama untuk operator. Screen ini mengatur wallet, key,
-buy size, dan risk control.
-
-| Tombol | Aksi |
-| --- | --- |
-| `Tab` / `Down` | Pindah ke field berikutnya. |
-| `Shift-Tab` / `Up` | Pindah ke field sebelumnya. |
-| `Left` / `Right` | Mengubah pilihan seperti theme, mode, pair scope, atau advanced toggle. |
-| Ketik teks | Mengedit text field yang aktif. |
-| `Backspace` | Menghapus satu karakter dari text field aktif. |
-| `Enter` | Menyimpan Settings. |
-| `Esc` | Kembali ke mode picker tanpa memulai trade. |
-
-Field yang bisa diedit:
-
-- Private key/base58 wallet
-- Buy size dalam SOL
-- Helius API key
-- Fallback RPC URL
-- Jupiter API key
-- Slippage dalam bps
-- Max hold seconds
-- Theme
-- Mode: Paper atau Live
-- Pair scope: Mayhem-only atau semua Pump.fun
-- Advanced risk: take-profit, stop-loss, max open positions, daily loss limit
-
-Menyimpan Settings tidak otomatis mengaktifkan live trading. Live tetap harus
-mengikuti checklist live mode di bagian bawah dokumen ini.
-
-### Auto Bot Setup
-
-Tekan `1` dari mode picker untuk mengatur autonomous scanner sebelum mulai.
-Kontrolnya sama seperti Settings, tetapi `Enter` akan save dan langsung
-menjalankan bot.
-
-Auto Bot setup mencakup:
-
-- Mode
-- Pair scope
-- Buy size
-- Slippage
-- Max hold
-- Batas umur stream event
-- Buy deadline
-- Advanced options: create slot lag, backfill, full transaction fetch, curve
-  exit quotes, confirmation polling, fallback read behavior
-
-Saat bot berjalan:
-
-| Tombol | Aksi |
-| --- | --- |
-| `Esc` | Stop bot. |
-| `Q` | Quit. |
-| `L` | Tampilkan/sembunyikan log. |
-
-Setelah bot berhenti, tekan `Esc` lagi untuk kembali ke menu.
-
-### Screen Paper Trade dan Live Trade
-
-Paper Trade dan Live Trade memakai flow visual yang sama:
-
-```text
-Welcome -> Scanning -> Evaluating -> Holding -> Selling -> Result
-```
-
-| Screen | Aksi Utama |
-| --- | --- |
-| Welcome | Tekan tombol apa saja untuk mulai scanning. |
-| Scanning | Catarnith mendengarkan event kandidat baru. |
-| Evaluating | Kandidat dicek lewat evidence, strategy, dan risk. |
-| Holding | Tekan `Enter` untuk sell posisi yang sedang di-hold. |
-| Selling | Tunggu fill paper atau hasil live sell. |
-| Result | Tekan `Enter` untuk trade lagi atau `Esc` untuk kembali ke menu. |
-
-Jika ada posisi terbuka dan kamu menekan `Esc`, Catarnith akan meminta
-konfirmasi. Jika kamu keluar, posisi tetap terbuka; posisi tidak otomatis
-dijual hanya karena kamu meninggalkan screen.
-
-### Logs
-
-Tekan `L` di screen non-settings untuk menampilkan atau menyembunyikan panel
-log. Pesan terbaru berada dekat bagian bawah. Line eksekusi, sell, panic, dan
-error akan di-highlight supaya isu operasional lebih mudah terlihat.
-
-### Panic Sell
-
-Untuk panic-sell langsung dari shell:
-
-```bash
-catarnith panic-sell <MINT> --config config.toml
-```
-
-Command ini diteruskan ke live execution helper dengan panic path aktif. Tetap
-memakai wallet, RPC, slippage, dan live safety setting dari config.
+Paper mode adalah safe path default. Live mode tersedia, tetapi membutuhkan
+dedicated wallet, flag arming live, risk cap, dan pemeriksaan safety wallet/RPC.
 
 ## Arsitektur
 
 ```mermaid
 flowchart TD
-    TUI["catarnith TUI"] --> Config["config.toml + .env"]
-    Bot["bot autonomous scanner"] --> Config
-    LiveCLI["live_execute helper"] --> Config
+    User["Operator"] --> TUI["catarnith TUI"]
+    User --> CLI["CLI subcommands"]
 
-    Config --> Validate["Validasi config dan live gates"]
-    Validate --> Ingest["Ingest stream Solana"]
+    TUI --> Config["config.toml + .env"]
+    CLI --> Config
+    Config --> Validate["Validasi config + live gates"]
 
-    Helius["Helius RPC / WebSocket"] --> Ingest
-    Pulse["Optional Pulse JSONL"] --> Discovery
+    Validate --> Single["Single trade paper/live"]
+    Validate --> AutoBot["Auto Bot"]
+    Validate --> Panic["panic-sell"]
 
-    Ingest --> Decode["Transaction decoder"]
+    Helius["Helius RPC/WebSocket"] --> Ingest["Ingest stream"]
+    Pulse["Pulse JSONL opsional"] --> Discovery["Discovery registry"]
+    Ingest --> Decode["Decoder"]
     Decode --> Classify["Classifier"]
-    Classify --> Evidence["Mayhem evidence gates"]
-    Evidence --> Discovery["Discovery registry"]
-    Discovery --> Strategy["Strategy"]
+    Classify --> Discovery
+    Discovery --> Strategy["Strategy + copy trade"]
     Strategy --> Risk["Risk engine"]
     Risk --> Order["Order builder"]
 
-    Order --> Paper["Paper executor"]
-    Order --> Live["Live Pump.fun executor"]
-    Paper --> Positions["Position manager"]
-    Live --> Positions
-    Positions --> Exit["Exit loop"]
-    Exit --> Order
+    Single --> Ingest
+    AutoBot --> Ingest
+    Panic --> LiveExec["Live executor"]
+    Order --> PaperExec["Paper executor"]
+    Order --> LiveExec
 
-    Positions --> Journal["JSONL journal + SQLite"]
+    PaperExec --> Positions["Position manager"]
+    LiveExec --> Positions
+    Positions --> ExitLoop["Exit loop"]
+    ExitLoop --> Risk
+    Positions --> Journal["Journal JSONL + SQLite"]
     Journal --> Reports["Paper/horizon reports"]
 ```
 
@@ -222,310 +68,377 @@ flowchart TD
 sequenceDiagram
     participant Stream as RPC Stream
     participant Decode as Decoder
-    participant Gate as Evidence Gate
+    participant Gate as Evidence/Market Gate
     participant Strategy as Strategy
     participant Risk as Risk
     participant Exec as Executor
     participant Journal as Journal
 
-    Stream->>Decode: Event Pump.fun / PumpSwap / wallet
-    Decode->>Gate: fakta mint, route, trade, dan create-event
-    Gate->>Strategy: kandidat valid atau rejection
-    Strategy->>Risk: keputusan buy/sell
-    Risk->>Exec: order disetujui atau veto reason
-    Exec->>Journal: fill simulasi atau laporan eksekusi live
+    Stream->>Decode: Event Pump.fun, PumpSwap, wallet, atau Pulse
+    Decode->>Gate: mint, route, side, create-event, delta wallet
+    Gate->>Strategy: kandidat eligible atau alasan ignore
+    Strategy->>Risk: proposal buy/sell
+    Risk->>Exec: order approved atau veto
+    Exec->>Journal: fill paper atau laporan eksekusi live
     Journal->>Strategy: restore posisi terbuka saat restart
 ```
 
-## Model Keamanan
+## Mode Runtime
 
-Paper mode tidak pernah mengirim order. Mode ini hanya mencatat fill simulasi
-dan PnL ke journal lokal.
+Menjalankan `catarnith` membuka mode picker:
 
-Live mode menolak broadcast kecuali:
+```text
+[1] Auto Bot      loop scanner/trader otonom
+[2] Live Trade    flow live trade satu posisi
+[3] Paper Trade   paper trading, tanpa order real
+[S] Settings      wallet, key, market, buy size, live setup
+```
 
-- `mode = "live"`
-- `enable_live_trading = true`
-- `require_manual_live_unlock = false`
-- dedicated hot-wallet sudah dikonfigurasi
-- file wallet berada di luar repository dan owner-only
-- path wallet tidak terlihat seperti main/cold/treasury wallet
-- fallback RPC adalah provider paid yang berbeda ketika dibutuhkan
-- risk cap ada dan cukup besar untuk buy size yang dipakai
-- `[live].max_balance_lamports` membatasi saldo wallet maksimum yang boleh
-  dipakai Catarnith
+Mode picker adalah sumber kebenaran untuk single-trade mode. Memilih Paper
+memaksa eksekusi paper-only untuk run itu. Memilih Live memaksa validasi live
+dan baru memakai live executor jika live gate sudah di-arm.
 
-Project ini adalah otomasi untuk market yang berisiko. Anggap live mode sebagai
-software uang sungguhan dan validasi perubahan di paper mode terlebih dahulu.
+## Cara Menggunakan TUI
+
+### Tombol Global
+
+| Tombol | Aksi |
+| --- | --- |
+| `1`, `2`, `3`, `S` | Pilih Auto Bot, Live Trade, Paper Trade, atau Settings dari mode picker. |
+| `Enter` | Start, confirm, sell saat diminta, atau save setup screen aktif. |
+| `Esc` | Back/cancel. Di screen bot/live, menutup log overlay dulu jika sedang terbuka. |
+| `Q` | Quit dari screen yang bukan text-entry. |
+| `T` | Ganti theme terminal. |
+| `L` | Buka atau tutup log overlay besar. |
+| `Up` / `Down` | Scroll log normal di luar settings screen. |
+| `PgUp` / `PgDn` | Scroll log lebih cepat. |
+| `Home` / `End` | Lompat ke log paling lama atau kembali ke tail. |
+| `Tab` / `Shift+Tab` | Pindah field di Settings dan Auto Bot Setup. |
+| `Left` / `Right` | Toggle/cycle pilihan seperti market, theme, live gate, copy sizing, atau copy policy. |
+
+### Settings
+
+Settings dipakai untuk setup level operator:
+
+- secret wallet atau path keypair wallet
+- Helius API key
+- fallback RPC opsional
+- Jupiter API key opsional
+- market preference: `mayhem_only`, `non_mayhem_only`, atau `all_pumpfun`
+- buy size, buy slippage, dan theme
+- live advanced controls: live enable, live lock, max wallet balance, max hold,
+  sell slippage, priority fee, Jito URL/tip, confirmation polling, dan
+  pre-broadcast simulation
+
+Settings tidak berisi picker paper/live. Paper vs Live dipilih dari mode picker
+utama.
+
+### Auto Bot Setup
+
+Auto Bot Setup muncul sebelum `[1] Auto Bot` berjalan. Screen ini mengatur
+konfigurasi khusus bot:
+
+- default mode untuk direct bot: paper atau live
+- market preference
+- buy size, slippage, max hold, stream age, dan buy deadline
+- copy trade wallet, sizing, max buy, dan follow-sells toggle
+- advanced bot controls: keep-alive, max positions, max buys per mint,
+  exposure per mint, total exposure terbuka, daily loss, copy buy policy,
+  copy-specific caps, create slot lag, backfill, full transaction fetch, curve
+  exit quotes, confirmation polling, dan fallback reads
+
+Saat `bot_keep_alive = true`, TUI akan restart child process bot jika proses
+keluar tidak terduga. Startup failure yang berulang cepat akan dihentikan dan
+ditampilkan di logs.
+
+### Screen Trade
+
+Paper Trade dan Live Trade memakai lifecycle visual yang sama:
+
+```text
+Welcome -> Scanning -> Evaluating -> Holding -> Selling -> Result
+```
+
+| Screen | Yang Terjadi |
+| --- | --- |
+| Welcome | Tekan `Enter` untuk mulai scanning. |
+| Scanning | Catarnith mendengarkan event kandidat baru. |
+| Evaluating | Kandidat dicek terhadap market, discovery, strategy, dan risk rule. |
+| Holding | Tekan `Enter` untuk sell posisi yang sedang di-hold. |
+| Selling | Tunggu fill paper atau hasil live sell. |
+| Result | Tekan `Enter` untuk trade lagi atau `Esc` untuk kembali ke picker. |
+
+Jika ada posisi terbuka dan kamu menekan `Esc`, Catarnith meminta konfirmasi
+sebelum meninggalkan trade screen.
+
+Di live mode, `submitted` berarti transaksi sell sudah dibroadcast tetapi belum
+terkonfirmasi. Catarnith tetap menampilkan posisi sebagai held sampai konfirmasi
+atau rekonsiliasi membuktikan inventory sudah kosong.
+
+### Logs
+
+Tekan `L` untuk membuka log overlay besar. Log bisa discroll dengan `PgUp`,
+`PgDn`, `Home`, dan `End`. Noise lifecycle yang normal dibersihkan, sementara
+error eksekusi, transport, panic-sell, dan fatal bot tetap terlihat.
 
 ## Setup
 
-### 1. Prasyarat
+### Prasyarat
 
 - Rust stable toolchain
 - Helius API key
-- Opsional tetapi direkomendasikan untuk live mode: Solana RPC paid yang berbeda
-- Opsional untuk sell fallback: Jupiter API key
-- Khusus live mode: dedicated hot wallet dengan saldo rendah
+- Untuk live trading: dedicated hot wallet dengan saldo rendah
+- Opsional untuk reliabilitas live: fallback RPC paid yang berbeda
+- Opsional untuk last-resort sell fallback: Jupiter API key terautentikasi
 
-### 2. Buat File Config Lokal
+### Install Dari Source
+
+```bash
+git clone https://github.com/jxstme22/catarnith.git
+cd catarnith
+cargo install --path . --locked
+catarnith
+```
+
+Untuk development tanpa install:
+
+```bash
+cargo run --bin catarnith
+```
+
+### Buat File Lokal
 
 ```bash
 cp config.example.toml config.toml
 cp .env.example .env
 ```
 
-`config.toml` dan `.env` sudah di-ignore oleh git.
+Kedua file ini di-gitignore. Jangan commit wallet key, RPC key, atau `.env`.
 
-### 3. Isi Nilai Wajib
+### Nilai Lokal Minimum
 
 Di `.env`:
 
 ```bash
 export HELIUS_API_KEY=your-helius-api-key
-export CTARNITH_FALLBACK_RPC_URL=https://your-paid-rpc.example
 ```
 
-Di `config.toml`, mulai dari:
+Di `config.toml`, pertahankan default aman sampai perilaku paper terlihat sehat:
 
 ```toml
 mode = "paper"
-base_buy_lamports = 13025001
+market = "mayhem_only"
 enable_live_trading = false
 require_manual_live_unlock = true
 ```
 
-Tetap gunakan paper mode sampai journal menunjukkan perilaku yang sudah kamu
-percaya.
+## Config Penting
 
-### 4. Build
-
-```bash
-cargo build --release --locked --features live-executor,tui --bins
-```
-
-Gunakan `--locked` supaya Cargo memakai versi dependency yang sudah dipin di
-`Cargo.lock`.
-
-## Referensi Konfigurasi
-
-Catarnith memuat konfigurasi dengan urutan:
-
-1. Default bawaan
-2. File TOML terpilih, biasanya `config.toml`
-3. Override dari `.env` dan environment process
-
-Setup baru sebaiknya memakai env var `CTARNITH_*`. Alias lama `MAYHEM_*` masih
-dibaca sebagai fallback.
-
-### Config Utama
-
-| Key | Deskripsi Singkat |
+| Key | Makna |
 | --- | --- |
-| `mode` | `"paper"` atau `"live"`. Paper adalah safe mode default. |
-| `helius_api_key` | Helius API key. Biasanya diisi lewat `HELIUS_API_KEY` di `.env`. |
-| `wallet_keypair_path` | Path ke file JSON keypair dedicated hot-wallet untuk live. |
-| `wallet_keypair_base58` | Private key base58 opsional. Untuk secret, lebih baik lewat `.env`. |
-| `pair_scope` | `"mayhem_only"` untuk filter ketat atau `"all_pumpfun"` untuk observasi lebih luas. |
-| `base_buy_lamports` | Buy size dalam lamports. `1 SOL = 1_000_000_000` lamports. |
-| `journal_dir` | Direktori untuk journal JSONL runtime. |
-| `sqlite_path` | Path SQLite untuk restore posisi. |
-
-### Discovery dan Evidence
-
-| Key | Deskripsi Singkat |
-| --- | --- |
-| `require_mayhem_evidence` | Wajib ada evidence Mayhem terpercaya sebelum entry. |
-| `allow_indirect_mayhem_candidates` | Mengizinkan kandidat indirect yang lebih lemah jika aktif. |
-| `require_route_confirmation` | Wajib route confirmation seperti Axiom -> Pump.fun/PumpSwap. |
-| `follow_observed_sell_signals` | Observed sell activity boleh memengaruhi exit. |
-| `mayhem_mint_allowlist_path` | Allowlist mint terverifikasi, satu mint per baris. |
-| `mayhem_metadata_url_template` | Template endpoint metadata terpercaya. |
-| `pulse_mints_path` | Feed discovery JSONL opsional yang di-tail saat runtime. |
-| `allow_onchain_mayhem_discovery` | Mengizinkan evidence Mayhem on-chain untuk verifikasi discovery. |
-| `require_fresh_mint_creation` | Wajib evidence mint baru berbasis create event. Direkomendasikan untuk live speed mode. |
-| `max_stream_event_age_ms` | Menolak event stream yang sudah stale. |
-| `entry_deadline_ms` | Umur lokal maksimum sebelum buy dianggap terlambat. |
-| `max_create_event_slot_lag` | Menolak create event yang terlalu jauh di belakang processed slot terbaru. |
-
-### Risk dan Exit
-
-| Key | Deskripsi Singkat |
-| --- | --- |
-| `max_open_positions` | Jumlah posisi terbuka maksimum. |
-| `max_buys_per_mint` | Jumlah buy maksimum untuk satu mint. |
-| `max_total_lamports_per_mint` | Cap exposure per mint. |
-| `max_total_open_lamports` | Cap total exposure terbuka. |
-| `max_daily_loss_lamports` | Rolling loss cap sebelum buy baru diveto. |
-| `max_failed_txs_per_minute` | Cap safety untuk failure rate. |
-| `max_failed_fee_burn_lamports_per_hour` | Cap safety untuk fee burn. |
+| `mode` | Default untuk direct `bot`/`scan` run. Mode picker TUI menimpa mode single-trade. |
+| `helius_api_key` | Helius API key, biasanya lewat `HELIUS_API_KEY`. |
+| `wallet_keypair_path` | Path JSON dedicated hot-wallet live. |
+| `wallet_keypair_base58` | Secret base58 opsional. Untuk secret, lebih aman di `.env`. |
+| `market` | `mayhem_only`, `non_mayhem_only`, atau `all_pumpfun`. Legacy `pair_scope` masih dibaca. Ini menjadi gate untuk entry normal dan buy copy-trade. |
+| `target_wallet` | Reference wallet opsional. Biarkan unset kecuali memang sengaja dipakai. |
+| `watched_wallets` | Wallet tambahan opsional untuk diawasi. |
+| `base_buy_sol` | Buy size dasar dalam SOL. Legacy `base_buy_lamports` masih dibaca. |
 | `max_slippage_bps` | Batas slippage buy dalam basis points. |
-| `paper_slippage_bps` | Model slippage adverse untuk fill paper. |
-| `paper_fee_lamports_floor` | Fee minimum untuk fill simulasi. |
-| `take_profit_bps` | Trigger take-profit. |
-| `take_profit_sell_bps` | Porsi yang dijual setelah take-profit, dalam basis points. |
-| `stop_loss_bps` | Trigger stop-loss. |
 | `max_hold_seconds` | Timer forced exit. |
-| `enable_take_profit_exit` | Mengaktifkan exit take-profit. |
-| `enable_stop_loss_exit` | Mengaktifkan exit stop-loss. |
-| `enable_curve_exit_quotes` | Memakai curve quote untuk valuasi exit. |
+| `max_open_positions` | Batas posisi terbuka bersamaan. |
+| `max_buys_per_mint` | Batas total buy-attempt per mint. |
+| `max_total_sol_per_mint` | Batas exposure per mint dalam SOL. |
+| `max_total_open_sol` | Batas total exposure terbuka dalam SOL. |
+| `max_daily_loss_sol` | Stop daily loss untuk entry baru dalam SOL. |
+| `backfill_limit` | Kedalaman history startup. Simpan `0` untuk live. |
+| `journal_dir` | Direktori journal JSONL. |
+| `sqlite_path` | Path state posisi SQLite. |
 
-### Runtime Stream
+### Market Selection
 
-| Key | Deskripsi Singkat |
+- `mayhem_only`: entry hanya saat evidence Mayhem diizinkan/terverifikasi.
+  Scanner single-trade menunggu flag Mayhem positif dari curve Pump.fun.
+- `non_mayhem_only`: hanya entry fresh create/create-v2 Pump.fun. Mode ini
+  menolak evidence Mayhem langsung, kandidat Mayhem tidak langsung, dan buy
+  copy-trade Mayhem. Scanner single-trade mensyaratkan curve mengembalikan
+  `is_mayhem_mode = false`; jika flag belum tersedia, kandidat diskip.
+- `all_pumpfun`: mengizinkan kandidat Pump.fun Mayhem dan non-Mayhem yang lolos
+  filter lain.
+
+## Copy Trade
+
+Copy trade adalah bagian dari Auto Bot. Fitur ini mengikuti source wallet yang
+dikonfigurasi, tetapi tetap memakai strategy, risk engine, executor, journal,
+dan position manager milik Catarnith.
+
+| Key | Makna |
 | --- | --- |
-| `subscribe_commitment` | Commitment stream, biasanya `"processed"`. |
-| `subscribe_programs` | Subscribe ke log program yang dikonfigurasi. |
-| `enable_transaction_subscribe` | Mengaktifkan transactionSubscribe jika plan RPC mendukung. |
-| `enable_logs_fallback` | Fallback ke logsSubscribe jika transactionSubscribe tidak tersedia. |
-| `fetch_full_transaction` | Fetch full transaction untuk decoding yang lebih kaya. |
-| `use_observed_entry_fill` | Model paper-only yang menilai entry dari transaksi sinyal. |
-| `backfill_limit` | Kedalaman backfill startup. Simpan `0` untuk live mode. |
+| `copy_trade_enabled` | Mengaktifkan copy trade. |
+| `copy_trade_wallet` | Source wallet yang diikuti. |
+| `copy_trade_sizing` | `fixed`, `mirror`, atau `scaled`. |
+| `copy_trade_scale_bps` | Faktor scale untuk `scaled`; `10000` berarti 1.0x. |
+| `copy_trade_max_buy_sol` | Cap keras ukuran copied buy dalam SOL. |
+| `copy_trade_buy_policy` | `first_only` atau `accumulate`. |
+| `copy_trade_max_buys_per_mint` | Batas buy copy per mint. |
+| `copy_trade_min_source_buy_sol` | Abaikan source buy di bawah nilai ini; `0` mematikan filter. |
+| `copy_trade_follow_sells` | Sell ketika source wallet menjual mint yang sedang di-hold Catarnith. |
+| `copy_trade_max_hold_seconds` | Timer forced exit untuk posisi hasil copy. |
+| `copy_trade_take_profit_bps` | Trigger take-profit khusus copy; `0` mematikan. |
+| `copy_trade_take_profit_sell_bps` | Porsi sell saat copy take-profit. |
+| `copy_trade_stop_loss_bps` | Trigger stop-loss khusus copy; `0` mematikan. |
+| `copy_trade_allow_pumpswap` | Khusus paper/research. Live PumpSwap copy execution diblokir. |
 
-### Live Execution
+Atribusi copy ketat: transaksi copy harus berasal dari stream wallet yang
+dicopy atau wallet itu menjadi signer. Transaksi yang hanya menyebut wallet
+sebagai account key akan diabaikan.
 
-Table `[live]` mengatur pengiriman transaksi sungguhan.
+Buy copy-trade mengikuti `market`. `non_mayhem_only` menolak sinyal Mayhem
+langsung, tidak langsung, atau terverifikasi; `mayhem_only` membutuhkan
+evidence Mayhem; `all_pumpfun` mengizinkan kedua sisi market Pump.fun.
 
-| Key `[live]` | Env Override | Deskripsi Singkat |
+## Konfigurasi Live
+
+Tuning eksekusi live ada di `[live]`.
+
+| Key `[live]` | Env Override | Makna |
 | --- | --- | --- |
 | `compute_unit_limit` | `CTARNITH_LIVE_COMPUTE_UNIT_LIMIT` | Compute unit per transaksi trade. |
 | `compute_unit_price_microlamports` | `CTARNITH_LIVE_COMPUTE_UNIT_PRICE_MICROLAMPORTS` | Priority fee. |
-| `send_max_retries` | `CTARNITH_LIVE_SEND_MAX_RETRIES` | Retry pengiriman RPC. |
-| `send_timeout_ms` | `CTARNITH_LIVE_SEND_TIMEOUT_MS` | Timeout per RPC send. |
+| `send_max_retries` | `CTARNITH_LIVE_SEND_MAX_RETRIES` | Retry send RPC. |
+| `send_timeout_ms` | `CTARNITH_LIVE_SEND_TIMEOUT_MS` | Timeout send per RPC. |
 | `rpc_timeout_ms` | `CTARNITH_LIVE_RPC_TIMEOUT_MS` | Timeout request RPC umum. |
 | `confirmation_timeout_ms` | `CTARNITH_LIVE_CONFIRMATION_TIMEOUT_MS` | Timeout konfirmasi buy. |
 | `sell_confirmation_timeout_ms` | `CTARNITH_LIVE_SELL_CONFIRMATION_TIMEOUT_MS` | Timeout konfirmasi sell. |
 | `confirmation_poll_ms` | `CTARNITH_LIVE_CONFIRMATION_POLL_MS` | Interval polling konfirmasi. |
-| `pre_broadcast_simulation` | `CTARNITH_LIVE_PRE_BROADCAST_SIMULATION` | Simulasi sebelum broadcast jika aktif. |
+| `pre_broadcast_simulation` | `CTARNITH_LIVE_PRE_BROADCAST_SIMULATION` | Simulasi sebelum broadcast. |
 | `settlement_commitment` | `CTARNITH_LIVE_SETTLEMENT_COMMITMENT` | `processed`, `confirmed`, atau `finalized`. |
-| `sell_slippage_bps` | `CTARNITH_LIVE_SELL_SLIPPAGE_BPS` | Slippage sell; kosongkan untuk memakai `max_slippage_bps`. |
-| `max_balance_lamports` | `CTARNITH_LIVE_MAX_BALANCE_LAMPORTS` | Menolak trade jika saldo wallet di atas nilai ini. |
-| `jito_block_engine_url` | `CTARNITH_LIVE_JITO_BLOCK_ENGINE_URL` | Path Jito opsional untuk panic-sell. |
-| `jito_tip_account` | `CTARNITH_LIVE_JITO_TIP_ACCOUNT` | Akun tip Jito. |
-| `jito_tip_lamports` | `CTARNITH_LIVE_JITO_TIP_LAMPORTS` | Jumlah tip Jito. |
-| `jupiter_timeout_ms` | `CTARNITH_LIVE_JUPITER_TIMEOUT_MS` | Timeout untuk Jupiter sell fallback. |
+| `sell_slippage_bps` | `CTARNITH_LIVE_SELL_SLIPPAGE_BPS` | Slippage sell. |
+| `max_balance_sol` | `CTARNITH_LIVE_MAX_BALANCE_SOL` | Menolak trade jika saldo wallet di atas nilai ini. |
+| `jito_block_engine_url` | `CTARNITH_LIVE_JITO_BLOCK_ENGINE_URL` | Path broadcast Jito opsional. |
+| `jito_tip_account` | `CTARNITH_LIVE_JITO_TIP_ACCOUNT` | Akun tip Jito opsional. |
+| `jito_tip_sol` | `CTARNITH_LIVE_JITO_TIP_SOL` | Jumlah tip Jito dalam SOL. Legacy key lamports masih dibaca. |
+| `jupiter_timeout_ms` | `CTARNITH_LIVE_JUPITER_TIMEOUT_MS` | Timeout Jupiter sell fallback. |
 
 ## Environment Variables Penting
 
-| Variable | Deskripsi |
+Gunakan nama `CTARNITH_*` untuk setup baru. Nama legacy `MAYHEM_*` masih dibaca
+sebagai fallback untuk script lokal lama.
+
+| Variable | Makna |
 | --- | --- |
-| `HELIUS_API_KEY` | Helius API key utama. Dipakai untuk membuat URL RPC/WebSocket utama. |
-| `HELIUS_API_KEY_FILE` | Path opsional ke file yang berisi Helius API key. |
-| `CTARNITH_LIVE_CONFIG` | Override path config aktif. Default `config.toml`. |
-| `CTARNITH_FALLBACK_RPC_URL` | Solana RPC paid berbeda untuk live broadcast/fallback. |
-| `JUP_API_KEY` | Jupiter API key opsional untuk sell fallback terakhir. |
-| `CTARNITH_WALLET_KEYPAIR_PATH` | Path file keypair hot-wallet live. |
-| `CTARNITH_WALLET_KEYPAIR_BASE58` | Private key base58 hot-wallet live. Menang atas keypair path. |
-| `CTARNITH_LIVE_BASE_BUY_LAMPORTS` | Override env untuk buy size. |
-| `CTARNITH_LIVE_MAX_SLIPPAGE_BPS` | Override env untuk slippage buy. |
-| `CTARNITH_PAIR_SCOPE` | Override env untuk `pair_scope`. |
-| `CTARNITH_LIVE_SELL_SLIPPAGE_BPS` | Override slippage khusus sell. |
-| `CTARNITH_LIVE_MAX_HOLD_SECONDS` | Override timer forced exit. |
-| `CTARNITH_LIVE_PARALLEL_FALLBACK_READS` | Membaca dari primary dan fallback RPC secara paralel jika aktif. |
-| `CTARNITH_LIVE_WAIT_FOR_BUY_CONFIRMATION` | Jika true, menunggu konfirmasi buy sebelum lanjut. |
-| `CTARNITH_LIVE_SKIP_POST_TRADE_BALANCES` | Jika true, melewati baca balance setelah trade. |
-| `CTARNITH_SCAN_SOL_PRICE_USD` | Mengunci harga SOL/USD di scan UI dan melewati fetch harga saat startup. |
-| `CTARNITH_SCAN_SKIP_PICKER` | Melewati mode picker dan langsung masuk scan mode. |
-| `CTARNITH_LIVE_PANIC_SEND_TIMEOUT_MS` | Timeout send untuk panic-sell. |
-| `CTARNITH_LIVE_PANIC_BALANCE_TIMEOUT_MS` | Timeout baca balance untuk panic-sell. |
+| `HELIUS_API_KEY` | Helius API key utama. |
+| `HELIUS_API_KEY_FILE` | File opsional berisi Helius key. |
+| `CTARNITH_LIVE_CONFIG` | Path config aktif. Default `config.toml`. |
+| `CTARNITH_FALLBACK_RPC_URL` | Fallback RPC paid opsional yang berbeda. |
+| `JUP_API_KEY` | Jupiter API key terautentikasi opsional untuk last-resort sell fallback. |
+| `CTARNITH_WALLET_KEYPAIR_PATH` | Path JSON wallet live. |
+| `CTARNITH_WALLET_KEYPAIR_BASE58` | Secret base58 wallet live. Menang atas keypair path. |
+| `CTARNITH_MARKET` | Override `market`. |
+| `CTARNITH_LIVE_BASE_BUY_SOL` | Override buy size. |
+| `CTARNITH_LIVE_MAX_SLIPPAGE_BPS` | Override slippage buy. |
+| `CTARNITH_LIVE_MAX_HOLD_SECONDS` | Override max hold. |
+| `CTARNITH_LIVE_ENABLE_LIVE_TRADING` | Override live enable gate. |
+| `CTARNITH_LIVE_REQUIRE_MANUAL_LIVE_UNLOCK` | Override manual live lock. |
+| `CTARNITH_LIVE_PARALLEL_FALLBACK_READS` | Mengaktifkan read primary/fallback paralel. |
+| `CTARNITH_LIVE_WAIT_FOR_BUY_CONFIRMATION` | Menunggu konfirmasi buy jika true. |
+| `CTARNITH_LIVE_SKIP_POST_TRADE_BALANCES` | Melewati baca balance setelah trade jika true. |
+| `CTARNITH_SCAN_SOL_PRICE_USD` | Mengunci harga SOL/USD di scan TUI. |
+| `CTARNITH_SCAN_SKIP_PICKER` | Melewati mode picker dan masuk scan mode. |
+| `CTARNITH_LIVE_PANIC_SEND_TIMEOUT_MS` | Timeout send panic-sell. |
+| `CTARNITH_LIVE_PANIC_BALANCE_TIMEOUT_MS` | Timeout baca balance panic-sell. |
 
 ## Cara Menjalankan
 
-### Terminal Interaktif
+Command setelah install:
 
 ```bash
-cargo run --features live-executor,tui --bin catarnith
+catarnith
+catarnith --config config.toml scan
+catarnith bot --config config.toml
+catarnith panic-sell <MINT> --config config.toml
+live_execute --config config.toml --side sell --mint <MINT>
 ```
 
-### Lewati Picker dan Masuk Trade Screen
+Command untuk development:
 
 ```bash
-cargo run --features live-executor,tui --bin catarnith -- scan
+cargo run --bin catarnith
+cargo run --bin catarnith -- --config config.toml scan
+cargo run --bin bot -- --config config.toml
+cargo run --bin live_execute -- --config config.toml --side sell --mint <MINT>
 ```
 
-### Bot Otonom
+Build semua release binary:
 
 ```bash
-cargo run --features live-executor --bin bot -- --config config.toml
+cargo build --release --locked --bins
 ```
 
-### One-Shot Live Execute
+Install semua binary ke PATH:
 
 ```bash
-cargo run --features live-executor --bin live_execute -- \
-  --config config.toml --side sell --mint <MINT>
-```
-
-### Panic Sell Lewat Catarnith
-
-```bash
-cargo run --features live-executor,tui --bin catarnith -- \
-  panic-sell <MINT> --config config.toml
-```
-
-### Build Binary Release
-
-```bash
-cargo build --release --locked --features live-executor,tui --bins
-```
-
-Lalu jalankan:
-
-```bash
-./target/release/catarnith
-./target/release/bot --config config.toml
-./target/release/live_execute --config config.toml --side sell --mint <MINT>
-```
-
-### Test
-
-```bash
-cargo test --features "live-executor tui"
+cargo install --path . --locked
 ```
 
 ## Checklist Live Mode
 
-Sebelum live mode:
+Sebelum live broadcast:
 
-1. Jalankan paper mode cukup lama sampai perilaku journal bisa dipercaya.
-2. Set `mode = "live"`.
+1. Validasi perilaku di paper mode lebih dulu.
+2. Pilih `[2] Live Trade` di picker, atau set `mode = "live"` untuk direct run.
 3. Set `enable_live_trading = true`.
 4. Set `require_manual_live_unlock = false`.
-5. Pakai dedicated hot wallet, bukan main atau treasury wallet.
-6. Simpan file wallet di luar repository dan jalankan `chmod 600 <wallet-file>`.
-7. Set `CTARNITH_FALLBACK_RPC_URL` ke paid RPC yang berbeda.
-8. Jaga `[live].max_balance_lamports` tetap rendah.
-9. Simpan `backfill_limit = 0`.
-10. Jalankan ulang test setelah perubahan config atau code.
+5. Pakai dedicated hot wallet dengan saldo rendah.
+6. Simpan file wallet di luar repo dan owner-only (`chmod 600`).
+7. Jaga `[live].max_balance_sol` tetap rendah.
+8. Simpan `backfill_limit = 0` untuk live.
+9. Jika `CTARNITH_FALLBACK_RPC_URL` diisi, pastikan berbeda dari primary RPC.
+10. Jalankan ulang test setelah perubahan code atau config.
 
 ## Output Runtime
 
-Secara default, Catarnith menulis output runtime lokal ke:
+Output runtime default untuk example config ada di `journals/bot/`. File penting:
 
-```text
-journals/bot/
-```
-
-File penting:
-
-| File | Deskripsi |
+| File | Makna |
 | --- | --- |
 | `raw_events.jsonl` | Event mentah dari stream. |
-| `decisions.jsonl` | Keputusan strategy dan risk veto. |
-| `orders.jsonl` | Order yang dibuat dari keputusan approved. |
+| `decoded_transactions.jsonl` | Fakta transaksi hasil decode. |
+| `discovery_signals.jsonl` | Evidence discovery. |
+| `decisions.jsonl` | Keputusan strategy dan alasan ignore/veto. |
+| `orders.jsonl` | Order dari keputusan approved. |
 | `executions.jsonl` | Laporan eksekusi paper atau live. |
 | `positions.jsonl` | Snapshot posisi. |
 | `metrics_snapshots.jsonl` | Metrik heartbeat runtime. |
-| SQLite file | State untuk restore posisi setelah restart. |
+| File SQLite | State restore posisi setelah restart. |
+
+File-file ini sengaja masuk `.gitignore`. Aman dibersihkan untuk run paper
+atau test lama, tapi simpan jika masih butuh evidence live trade, debugging
+sell/retry, atau restore posisi terbuka setelah restart.
+
+## Verifikasi
+
+Check yang direkomendasikan:
+
+```bash
+cargo fmt
+cargo test
+cargo clippy --all-targets -- -D warnings
+git diff --check
+```
 
 ## Troubleshooting
 
-| Gejala | Yang Perlu Dicek |
+| Gejala | Yang Dicek |
 | --- | --- |
-| Config tidak bisa dimuat | Pastikan `config.toml` ada dan valid sebagai TOML. |
+| Settings langsung terbuka | Setup lokal hilang atau belum lengkap. Save Settings sekali. |
+| Config tidak bisa dimuat | Cek syntax TOML dan path config aktif di picker. |
 | Helius key hilang | Set `HELIUS_API_KEY`, `HELIUS_API_KEY_FILE`, atau `helius_api_key`. |
-| Live mode menolak start | Cek arming flag, path wallet, fallback RPC, dan risk cap. |
-| Kandidat tidak muncul | Cek akses RPC/WebSocket, stream fallback, dan evidence gates. |
-| Decision ditolak | Lihat `decisions.jsonl` untuk `risk_veto_reason`. |
-| Order dibuat tapi tidak ada fill | Cek `executions.jsonl`, slippage, error RPC, dan saldo wallet. |
-| Wallet balance diblokir | Turunkan saldo wallet atau naikkan `[live].max_balance_lamports` secara sengaja. |
+| Live menolak start | Cek live gates, wallet source, max balance, risk cap, dan fallback RPC opsional. |
+| Kandidat tidak muncul | Cek akses RPC/WebSocket, stream fallback, market selection, dan evidence gate. |
+| Copy trade tidak buy | Cek `copy_trade_enabled`, source wallet, full transaction fetch, source buy size, max buys per mint, dan apakah mint yang dicopy diblokir oleh `market`. |
+| Non-Mayhem entry Mayhem atau token lama | Seharusnya tidak. `non_mayhem_only` butuh event fresh create/create-v2 dan curve `is_mayhem_mode = false`; flag unknown dan sinyal Mayhem akan diskip. |
+| Log sulit dibaca | Tekan `L`, lalu gunakan `PgUp`, `PgDn`, `Home`, dan `End`. |
+
+Ini bukan nasihat finansial. Perlakukan live mode sebagai software uang
+sungguhan dan gunakan saldo kecil hanya setelah validasi paper.
